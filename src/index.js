@@ -1,27 +1,11 @@
+require("dotenv").config()
 const express = require("express")
 const app = express()
 app.use(express.json())
-const cors = require("cors")
-app.use(cors())
 app.use(express.static("dist"))
+const Note = require("./models/note")
 
-let notes = [
-  {
-    id: "1",
-    content: "HTML is easy",
-    important: true,
-  },
-  {
-    id: "2",
-    content: "Browser can execute only JavaScript",
-    important: false,
-  },
-  {
-    id: "3",
-    content: "GET and POST are the most important methods of HTTP protocol",
-    important: true,
-  },
-]
+let notes = []
 
 const requestLogger = (request, response, next) => {
   console.log("Method:", request.method)
@@ -33,29 +17,35 @@ const requestLogger = (request, response, next) => {
 
 app.use(requestLogger)
 
+app.get("/api/notes", (request, response) => {
+  Note.find({}).then((notes) => {
+    response.json(notes)
+  })
+})
+
 app.get("/", (request, response) => {
   response.send("<h1>Hello World!</h1>")
 })
 
-app.get("/api/notes", (request, response) => {
+/*app.get("/api/notes", (request, response) => {
   response.json(notes)
-})
+})*/
 
 app.get("/api/notes/:id", (request, response) => {
   const id = request.params.id
   const note = notes.find((note) => note.id === id)
 
   if (note) {
-    respnose.json(note)
+    response.json(note)
   } else {
-    respnose.status(404).end()
+    response.status(404).end()
   }
 })
 
 app.delete("/api/notes/:id", (request, response) => {
-  const id = request.params.id
-  notes = notes.filter((n) => id !== n.id)
-  respnose.status(204).end()
+  Note.findByIdAndDelete(request.params.id).then((note) => {
+    response.status(204).end()
+  })
 })
 
 const generateId = () => {
@@ -64,23 +54,38 @@ const generateId = () => {
   return String(maxId + 1)
 }
 
-app.post("/api/notes", (request, respnose) => {
+app.post("/api/notes", (request, response) => {
   const body = request.body
 
   if (!body.content) {
-    return respnose.status(400).json({
+    return response.status(400).json({
       error: "content missing",
     })
   }
 
-  const note = {
+  const note = new Note({
     content: body.content,
-    important: body.important,
-    id: generateId(),
-  }
+    important: body.important || false,
+  })
 
-  notes = notes.concat(note)
-  respnose.json(note)
+  note.save().then((savedNote) => {
+    response.json(savedNote)
+  })
+})
+
+app.get("/api/notes/:id", (request, response) => {
+  Note.findById(request.params.id)
+    .then((returnedNote) => {
+      if (returnedNote) {
+        response.json(returnedNote)
+      } else {
+        response.status(404).end()
+      }
+    })
+    .catch((err) => {
+      console.log(error)
+      response.status(500).end()
+    })
 })
 
 const unknownEndpoint = (request, response) => {
@@ -89,7 +94,7 @@ const unknownEndpoint = (request, response) => {
 
 app.use(unknownEndpoint)
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
